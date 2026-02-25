@@ -6,24 +6,27 @@ import java.time.LocalDateTime
 @Entity
 @Table(name = "payment_log")
 data class PaymentLog(
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
-    // Existing fields for logPayment
+    // JSON payloads for request/response
     @Column(name = "request_payload", columnDefinition = "jsonb", nullable = true)
     val requestPayload: String? = null,
 
     @Column(name = "response_payload", columnDefinition = "jsonb", nullable = true)
     val responsePayload: String? = null,
 
-    @ManyToOne
+    // Link to MpesaTransaction
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
     val transaction: MpesaTransaction? = null,
 
-    @Column(name = "log_time")
+    @Column(name = "log_time", nullable = false)
     val logTime: LocalDateTime = LocalDateTime.now(),
 
-    // New fields for logAction
+    // Optional fields for logging actions
     @Column(name = "action")
     val action: String? = null,
 
@@ -39,6 +42,6 @@ data class PaymentLog(
     @Column(name = "details")
     val details: String? = null,
 
-    @Column(name = "created_at")
+    @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now()
 )

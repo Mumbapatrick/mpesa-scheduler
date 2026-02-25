@@ -5,7 +5,6 @@ import com.fintech.mpesascheduler.entity.PaymentLog
 import com.fintech.mpesascheduler.repository.PaymentLogRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDateTime
 
 @Service
 class PaymentLogService(
@@ -29,7 +28,6 @@ class PaymentLogService(
             accountReference = accountReference,
             transactionDesc = transactionDesc,
             details = details,
-            createdAt = LocalDateTime.now()
         )
         return paymentLogRepository.save(log)
     }
@@ -44,10 +42,9 @@ class PaymentLogService(
         responsePayload: String
     ): PaymentLog {
         val log = PaymentLog(
-            transaction = transaction,
             requestPayload = requestPayload,
             responsePayload = responsePayload,
-            logTime = LocalDateTime.now()
+            transaction = transaction,
         )
         return paymentLogRepository.save(log)
     }

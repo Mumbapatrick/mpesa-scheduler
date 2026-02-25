@@ -1,7 +1,11 @@
 package com.fintech.mpesascheduler.controller
 
+import com.fintech.mpesascheduler.dto.BatchTransactionRequest
 import com.fintech.mpesascheduler.dto.StkPushRequest
+import com.fintech.mpesascheduler.dto.PaymentLogRequest
+import com.fintech.mpesascheduler.dto.ScheduledPaymentRequest
 import com.fintech.mpesascheduler.entity.*
+import com.fintech.mpesascheduler.enums.PaymentStatus
 import com.fintech.mpesascheduler.repository.*
 import com.fintech.mpesascheduler.service.MpesaService
 import org.springframework.http.HttpStatus
@@ -33,20 +37,21 @@ class MpesaController(
     // MPESA TRANSACTIONS
     // --------------------------
     @GetMapping("/transactions")
-    fun getAllTransactions(): List<MpesaTransaction> = mpesaTransactionRepository.findAll()
+    fun getAllTransactions(): List<MpesaTransaction> =
+        mpesaTransactionRepository.findAll()
 
     @GetMapping("/transactions/{id}")
-    fun getTransaction(@PathVariable id: Long): ResponseEntity<MpesaTransaction> {
-        val transaction = mpesaTransactionRepository.findById(id)
-        return transaction.map { ResponseEntity.ok(it) }
-            .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build())
-    }
+    fun getTransaction(@PathVariable id: Long): ResponseEntity<MpesaTransaction> =
+        mpesaTransactionRepository.findById(id)
+            .map { ResponseEntity.ok(it) }
+            .orElse(ResponseEntity.notFound().build())
 
     @PostMapping("/transactions")
     fun createTransaction(@RequestBody transaction: MpesaTransaction): ResponseEntity<MpesaTransaction> {
-        // Validate related user and batchTransaction
         val user = transaction.user?.id?.let { userRepository.findById(it).orElse(null) }
-        val batch = transaction.batchTransaction?.id?.let { batchTransactionRepository.findById(it).orElse(null) }
+        val batch = transaction.batchTransaction?.id?.let {
+            batchTransactionRepository.findById(it).orElse(null)
+        }
 
         val saved = mpesaTransactionRepository.save(
             transaction.copy(
@@ -55,6 +60,7 @@ class MpesaController(
                 transactionDate = LocalDateTime.now()
             )
         )
+
         return ResponseEntity.status(HttpStatus.CREATED).body(saved)
     }
 
@@ -62,58 +68,95 @@ class MpesaController(
     // BATCH TRANSACTIONS
     // --------------------------
     @GetMapping("/batches")
-    fun getAllBatches(): List<BatchTransaction> = batchTransactionRepository.findAll()
+    fun getAllBatches(): List<BatchTransaction> =
+        batchTransactionRepository.findAll()
 
     @GetMapping("/batches/{id}")
-    fun getBatch(@PathVariable id: Long): ResponseEntity<BatchTransaction> {
-        val batch = batchTransactionRepository.findById(id)
-        return batch.map { ResponseEntity.ok(it) }
-            .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build())
-    }
+    fun getBatch(@PathVariable id: Long): ResponseEntity<BatchTransaction> =
+        batchTransactionRepository.findById(id)
+            .map { ResponseEntity.ok(it) }
+            .orElse(ResponseEntity.notFound().build())
 
     @PostMapping("/batches")
-    fun createBatch(@RequestBody batch: BatchTransaction): ResponseEntity<BatchTransaction> {
-        val user = batch.user?.id?.let { userRepository.findById(it).orElse(null) }
-        val saved = batchTransactionRepository.save(batch.copy(user = user, createdAt = LocalDateTime.now()))
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved)
+    fun createBatch(@RequestBody request: BatchTransactionRequest): ResponseEntity<BatchTransaction> {
+        val user = request.userId?.let { userRepository.findById(it).orElse(null) }
+
+        val batch = BatchTransaction(
+            batchName = request.batchName,
+            totalAmount = request.totalAmount,
+            transactionCount = request.transactionCount,
+            splitType = request.splitType,
+            status = "PENDING",
+            user = user,
+            createdAt = LocalDateTime.now()
+        )
+
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(batchTransactionRepository.save(batch))
     }
 
     // --------------------------
     // SCHEDULED PAYMENTS
     // --------------------------
     @GetMapping("/scheduled")
-    fun getAllScheduledPayments(): List<ScheduledPayment> = scheduledPaymentRepository.findAll()
+    fun getAllScheduledPayments(): List<ScheduledPayment> =
+        scheduledPaymentRepository.findAll()
 
     @PostMapping("/scheduled")
-    fun schedulePayment(@RequestBody payment: ScheduledPayment): ResponseEntity<ScheduledPayment> {
-        val user = payment.user?.id?.let { userRepository.findById(it).orElse(null) }
-        val saved = scheduledPaymentRepository.save(payment.copy(
+    fun schedulePayment(
+        @RequestBody request: ScheduledPaymentRequest
+    ): ResponseEntity<ScheduledPayment> {
+
+        val user = request.userId?.let { userRepository.findById(it).orElse(null) }
+
+        val payment = ScheduledPayment(
+            phoneNumber = request.phoneNumber,
+            amount = request.amount,
+            reference = request.reference,
+            scheduleTime = request.scheduleTime,
+            status = PaymentStatus.PENDING,
             createdAt = LocalDateTime.now(),
             updatedAt = LocalDateTime.now(),
-            processed = false,
             user = user
-        ))
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved)
+        )
+
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(scheduledPaymentRepository.save(payment))
     }
 
     // --------------------------
     // PAYMENT LOGS
     // --------------------------
     @GetMapping("/logs")
-    fun getAllPaymentLogs(): List<PaymentLog> = paymentLogRepository.findAll()
+    fun getAllPaymentLogs(): List<PaymentLog> =
+        paymentLogRepository.findAll()
 
     @GetMapping("/logs/transaction/{transactionId}")
     fun getLogsByTransaction(@PathVariable transactionId: Long): List<PaymentLog> =
         paymentLogRepository.findByTransactionId(transactionId)
 
     @PostMapping("/logs")
-    fun createPaymentLog(@RequestBody log: PaymentLog): ResponseEntity<PaymentLog> {
-        val transaction = log.transaction?.id?.let { mpesaTransactionRepository.findById(it).orElse(null) }
-        val saved = paymentLogRepository.save(log.copy(
+    fun createPaymentLog(
+        @RequestBody request: PaymentLogRequest
+    ): ResponseEntity<PaymentLog> {
+
+        val transaction = request.transactionId?.let {
+            mpesaTransactionRepository.findById(it).orElse(null)
+        }
+
+        val log = PaymentLog(
             transaction = transaction,
+            action = "MANUAL_LOG",
+            status = "INFO",
+            details = request.message,
             logTime = LocalDateTime.now(),
             createdAt = LocalDateTime.now()
-        ))
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved)
+        )
+
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(paymentLogRepository.save(log))
     }
 }

@@ -5,11 +5,13 @@ import com.fintech.mpesascheduler.dto.StkPushRequest
 import com.fintech.mpesascheduler.entity.MpesaTransaction
 import com.fintech.mpesascheduler.repository.MpesaTransactionRepository
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.*
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestTemplate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 
@@ -17,18 +19,16 @@ import java.util.*
 class MpesaService(
     private val restTemplate: RestTemplate,
     private val props: MpesaProperties,
-    private val repository: MpesaTransactionRepository
+    private val repository: MpesaTransactionRepository,
+    @Value("\${app.base-url}") private val appBaseUrl: String
 ) {
 
     private val logger = LoggerFactory.getLogger(MpesaService::class.java)
 
-    /**
-     * ======================
-     *  STK PUSH MAIN LOGIC
-     * ======================
-     */
     fun initiateStkPush(request: StkPushRequest): String {
-        logger.info("🔄 Initiating STK Push | Phone=${request.phoneNumber}, Amount=${request.amount}")
+        val phoneNumber = request.phoneNumber.takeIf { it.isNotBlank() } ?: getSandboxTestNumber()
+        val amount = request.amount.toInt()
+        logger.info("🔄 Initiating Sandbox STK Push | Phone=$phoneNumber, Amount=$amount")
 
         val token = getAccessToken()
         val timestamp = generateTimestamp()
@@ -36,31 +36,27 @@ class MpesaService(
 
         val transaction = repository.save(
             MpesaTransaction(
-                targetValue = request.phoneNumber,
+                targetValue = phoneNumber,
                 transactionType = "INDIVIDUAL",
                 amount = request.amount,
                 reference = request.accountReference,
-                phoneNumber = request.phoneNumber,
+                phoneNumber = phoneNumber,
                 status = "PENDING",
                 transactionDate = LocalDateTime.now()
             )
         )
 
-        /**
-         *  YOUR CALLBACK URL SHOULD BE FROM YOUR SERVER, NOT MPESA BASE URL
-         */
-
-        val callbackUrl = "http://localhost:8080/api/mpesa/callback/${transaction.id}"
+        val callbackUrl = "$appBaseUrl/api/mpesa/callback/${transaction.id}"
 
         val stkBody = mapOf(
             "BusinessShortCode" to props.shortCode,
             "Password" to password,
             "Timestamp" to timestamp,
             "TransactionType" to "CustomerPayBillOnline",
-            "Amount" to request.amount.toInt(),
-            "PartyA" to request.phoneNumber,
+            "Amount" to amount,
+            "PartyA" to phoneNumber,
             "PartyB" to props.shortCode,
-            "PhoneNumber" to request.phoneNumber,
+            "PhoneNumber" to phoneNumber,
             "CallBackURL" to callbackUrl,
             "AccountReference" to request.accountReference,
             "TransactionDesc" to request.transactionDesc
@@ -73,7 +69,7 @@ class MpesaService(
 
         return try {
             val url = "${props.baseUrl}/mpesa/stkpush/v1/processrequest"
-            logger.info("📡 Sending STK Push → $url")
+            logger.info("Sending STK Push → $url")
 
             val response = restTemplate.exchange(
                 url,
@@ -87,37 +83,32 @@ class MpesaService(
             transaction.apply {
                 checkoutRequestId = body["CheckoutRequestID"]?.toString()
                 responseCode = body["ResponseCode"]?.toString()
-                responseDescription = body["ResponseDescription"]?.toString()
+                responseDescription = body["ResponseDescription"]?.toString()?.take(1000)
                 status = if (responseCode == "0") "REQUEST_SENT" else "FAILED"
             }
 
             repository.save(transaction)
-
-            logger.info("✅ STK Push request completed for TxID: ${transaction.id}")
+            logger.info(" STK Push request completed for TxID: ${transaction.id}")
             "STK Push initiated successfully"
 
         } catch (ex: Exception) {
-            logger.error("❌ STK Push Error: ${ex.message}")
+            logger.error(" STK Push Error: ${ex.message}", ex)
 
-            transaction.status = "FAILED"
-            transaction.responseDescription = ex.message
+            transaction.apply {
+                status = "FAILED"
+                responseDescription = ex.message?.take(1000)
+            }
             repository.save(transaction)
 
             "STK Push failed → ${ex.message}"
         }
     }
 
-    /**
-     * ======================
-     *  FETCH ACCESS TOKEN
-     * ======================
-     */
     private fun getAccessToken(): String {
         val url = "${props.baseUrl}/oauth/v1/generate?grant_type=client_credentials"
-
         return try {
             val headers = HttpHeaders().apply {
-                setBasicAuth(props.consumerKey, props.consumerSecret)
+                setBasicAuth(props.consumerKey.trim(), props.consumerSecret.trim())
             }
 
             val response = restTemplate.exchange(
@@ -127,23 +118,24 @@ class MpesaService(
                 object : ParameterizedTypeReference<Map<String, Any>>() {}
             )
 
-            val token = response.body?.get("access_token")?.toString()
+            response.body?.get("access_token")?.toString()
+                ?.also { logger.info(" Daraja Access Token Fetched") }
                 ?: throw RuntimeException("No access_token returned")
 
-            logger.info("🔑 Daraja Access Token Fetched")
-            token
-
         } catch (ex: Exception) {
-            logger.error("❌ Failed to fetch token: ${ex.message}")
+            logger.error(" Failed to fetch token: ${ex.message}", ex)
             throw ex
         }
     }
 
     private fun generatePassword(timestamp: String): String {
         val raw = props.shortCode + props.passKey + timestamp
+        logger.info(" Generated Password (sandbox) = $raw")
         return Base64.getEncoder().encodeToString(raw.toByteArray())
     }
 
     private fun generateTimestamp(): String =
-        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+        LocalDateTime.now(ZoneId.of("Africa/Nairobi")).format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+
+    fun getSandboxTestNumber(): String = "254708374149"
 }

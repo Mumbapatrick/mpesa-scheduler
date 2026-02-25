@@ -20,7 +20,6 @@ interface RoleRepository : JpaRepository<Role, Long> {
     fun findByName(name: String): Role?
 }
 
-
 // -----------------------------
 // TRANSACTION REPOSITORIES
 // -----------------------------

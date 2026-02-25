@@ -13,23 +13,20 @@ data class ScheduledPayment(
     val id: Long = 0,
 
     @Column(name = "phone_number", nullable = false)
-    var phoneNumber: String = "",
+    var phoneNumber: String,
 
     @Column(nullable = false)
-    var amount: Double = 0.0,
+    var amount: Double,
 
     @Column
     var reference: String? = null,
 
     @Column(name = "schedule_time", nullable = false)
-    var scheduleTime: LocalDateTime = LocalDateTime.now(),
+    var scheduleTime: LocalDateTime,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: PaymentStatus = PaymentStatus.PENDING,
-
-    @Column(name = "processed", nullable = false)
-    var processed: Boolean = false,
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
@@ -37,10 +34,7 @@ data class ScheduledPayment(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
 
-    // --------------------------------------
-    // RELATIONSHIP: ScheduledPayment → User
-    // --------------------------------------
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")  // FK Column
+    @JoinColumn(name = "user_id")
     var user: UserAccount? = null
 )

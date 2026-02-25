@@ -11,30 +11,30 @@ data class MpesaTransaction(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
-    @Column(name = "target_value", nullable = false)
-    val targetValue: String,
+    @Column(name = "target_value", nullable = false, length = 255)
+    val targetValue: String = "",
 
-    @Column(name = "transaction_type", nullable = false)
+    @Column(name = "transaction_type", nullable = false, length = 50)
     val transactionType: String = "INDIVIDUAL",
 
     @Column(nullable = false)
-    val amount: Double,
+    val amount: Double = 0.0,
 
+    @Column(length = 255)
     val reference: String? = null,
 
-    @Column(name = "checkout_request_id")
+    @Column(name = "checkout_request_id", length = 200)
     var checkoutRequestId: String? = null,
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     var status: String = "PENDING",
 
-    @Column(name = "response_code")
+    @Column(name = "response_code", length = 50)
     var responseCode: String? = null,
 
-    @Column(name = "response_description")
+    @Column(name = "response_description", columnDefinition = "TEXT")
     var responseDescription: String? = null,
 
-    // Single FK to batch_transaction
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "batch_transaction_id")
     val batchTransaction: BatchTransaction? = null,
@@ -43,10 +43,10 @@ data class MpesaTransaction(
     @JoinColumn(name = "user_id")
     val user: UserAccount? = null,
 
-    @Column(name = "phone_number")
+    @Column(name = "phone_number", length = 20)
     val phoneNumber: String? = null,
 
-    @Column(name = "scan_type")
+    @Column(name = "scan_type", length = 50)
     val scanType: String? = null,
 
     @Column(name = "transaction_date")

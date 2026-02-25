@@ -13,16 +13,16 @@ data class BatchTransaction(
     val id: Long = 0,
 
     @Column(nullable = false)
-    val batchName: String,
+    val batchName: String = "",  // default value ensures no null issues
 
     @Column(name = "total_amount", nullable = false)
-    val totalAmount: Double,
+    val totalAmount: Double = 0.0, // default value ensures no null issues
 
     @Column(name = "split_type", nullable = false)
     val splitType: String = "EQUAL",   // EQUAL or CUSTOM
 
     @Column(name = "transaction_count", nullable = false)
-    val transactionCount: Int,
+    val transactionCount: Int = 0, // default value ensures no null issues
 
     @Column(nullable = false)
     var status: String = "PENDING",   // PENDING, COMPLETED, FAILED
